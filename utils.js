@@ -16,9 +16,9 @@ function createCircleVertices({
   startAngle = 0,
   endAngle = Math.PI * 2,
 } = {}) {
-  // 2 triangles per subdivision, 3 verts per tri, 2 values (xy) each.
-  const numVertices = numSubdivisions * 3 * 2;
-  const vertexData = new Float32Array(numSubdivisions * 2 * 3 * 2);
+  // 2 vertices at each subdivision + 1 to wrap around the circle
+  const numVertices = (numSubdivisions + 1) * 2;
+  const vertexData = new Float32Array(numVertices * 2);
 
   let offset = 0;
   const addVertex = (x, y) => {
@@ -28,33 +28,44 @@ function createCircleVertices({
 
   // 2 vertices per subdivision
   //
-  // 0--1 4
-  // | / /|
-  // |/ / |
-  // 2 3--5
-  for (let i = 0; i < numSubdivisions; ++i) {
-    const angle1 = startAngle + ((i + 0) * (endAngle - startAngle)) / numSubdivisions;
-    const angle2 = startAngle + ((i + 1) * (endAngle - startAngle)) / numSubdivisions;
+  // 0  2  4  6  8 ...
+  //
+  // 1  3  5  7  9 ...
+  for (let i = 0; i <= numSubdivisions; ++i) {
+    const angle = startAngle + ((i + 0) * (endAngle - startAngle)) / numSubdivisions;
 
-    const c1 = Math.cos(angle1);
-    const s1 = Math.sin(angle1);
-    const c2 = Math.cos(angle2);
-    const s2 = Math.sin(angle2);
+    const c = Math.cos(angle);
+    const s = Math.sin(angle);
+
+    addVertex(c * radius, s * radius);
+    addVertex(c * innerRadius, s * innerRadius);
+  }
+
+  const indexData = new Uint32Array(numSubdivisions * 6);
+  let ndx = 0;
+
+  // 0---2---4---...
+  // | //| //|
+  // |// |// |//
+  // 1---3-- 5---...
+  for (let i = 0; i < numSubdivisions; ++i) {
+    const ndxOffset = i * 2;
 
     // first triangle
-    addVertex(c1 * radius, s1 * radius);
-    addVertex(c2 * radius, s2 * radius);
-    addVertex(c1 * innerRadius, s1 * innerRadius);
+    indexData[ndx++] = ndxOffset;
+    indexData[ndx++] = ndxOffset + 1;
+    indexData[ndx++] = ndxOffset + 2;
 
     // second triangle
-    addVertex(c1 * innerRadius, s1 * innerRadius);
-    addVertex(c2 * radius, s2 * radius);
-    addVertex(c2 * innerRadius, s2 * innerRadius);
+    indexData[ndx++] = ndxOffset + 2;
+    indexData[ndx++] = ndxOffset + 1;
+    indexData[ndx++] = ndxOffset + 3;
   }
 
   return {
     vertexData,
-    numVertices,
+    indexData,
+    numVertices: indexData.length,
   };
 }
 
