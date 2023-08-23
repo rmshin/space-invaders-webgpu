@@ -1,19 +1,27 @@
-import { setup, setupVertexBuffers, setupVertexAttributeBuffers } from './webgpu.js';
+import {
+  setup,
+  setupVertexBuffers,
+  setupVertexAttributeBuffers,
+  setupShooterBuffers,
+} from './webgpu.js';
+import { setupUserInputHandlers, clearUserInputHandlers, getShooterOffsetX } from './user-input.js';
 
 async function main() {
   const { device, canvas, pipeline, renderPassDescriptor } = await setup();
   const { triangle, circle, rect } = setupVertexBuffers(device);
 
   // grid count of invaders
-  const numRowsTri = 1,
-    numRowsCirc = 2,
-    numRowsRect = 2;
+  const numRowsTri = 1, // shooters
+    numRowsCirc = 2, // middle invaders
+    numRowsRect = 2; // front invaders
   const numRows = numRowsTri + numRowsCirc + numRowsRect;
   const numCols = 11;
 
   const { fixed, dynamic } = setupVertexAttributeBuffers(device, numRows, numCols);
+  const { shooter } = setupShooterBuffers(device);
 
   // game state
+  let startGame = false;
   let gameOver = false;
 
   // update
@@ -22,20 +30,29 @@ async function main() {
   let horizontalShiftFactor = 0.03;
   let downwardShift = 0.05;
   let tickPeriod = 650;
+
   function update(time) {
-    if (dynamic.vOffset.data[dynamic.vOffset.data.length - 1] <= -0.9) {
+    // TEMP: hard-coded game over condition
+    if (dynamic.vOffset.data[dynamic.vOffset.data.length - 1] <= -0.87) {
       gameOver = true;
     }
     if (previousTimeStamp === undefined) {
       previousTimeStamp = time;
     }
+    // shooter movement
+    const shooterOffsetX = getShooterOffsetX();
+    for (let i = 0; i < shooter.offsetData.length; i += 2) {
+      shooter.offsetData[i] = shooterOffsetX;
+    }
+    device.queue.writeBuffer(shooter.offBuffer, 0, shooter.offsetData);
+
+    // invader animation
     const elapsed = time - previousTimeStamp;
     if (elapsed >= tickPeriod) {
       const delta_time = elapsed * 0.001;
       previousTimeStamp = time;
 
-      // animation
-      if (currDir == 'right' && dynamic.vOffset.data[dynamic.vOffset.data.length - 2] >= 0.95) {
+      if (currDir == 'right' && dynamic.vOffset.data[dynamic.vOffset.data.length - 2] >= 0.92) {
         currDir = 'left';
         tickPeriod = Math.max(300, tickPeriod - 75);
         horizontalShiftFactor = Math.min(0.15, horizontalShiftFactor + 0.03);
@@ -43,7 +60,7 @@ async function main() {
           const offset = (i * dynamic.vOffset.unitSize) / 4 + 1;
           dynamic.vOffset.data[offset] -= downwardShift;
         }
-      } else if (currDir == 'left' && dynamic.vOffset.data[0] <= -0.95) {
+      } else if (currDir == 'left' && dynamic.vOffset.data[0] <= -0.92) {
         currDir = 'right';
         tickPeriod = Math.min(300, tickPeriod - 75);
         horizontalShiftFactor = Math.min(0.15, horizontalShiftFactor + 0.03);
@@ -102,6 +119,12 @@ async function main() {
     );
     pass.setIndexBuffer(rect.idxBuffer, 'uint32');
     pass.drawIndexed(rect.numVertices, numRowsRect * numCols);
+    // draw shooter
+    pass.setVertexBuffer(0, shooter.vBuffer);
+    pass.setVertexBuffer(1, shooter.csBuffer);
+    pass.setVertexBuffer(2, shooter.offBuffer);
+    pass.setIndexBuffer(shooter.idxBuffer, 'uint32');
+    pass.drawIndexed(shooter.numVertices);
     pass.end();
 
     const commandBuffer = encoder.finish();
@@ -116,10 +139,11 @@ async function main() {
 
     if (gameOver) {
       cancelAnimationFrame(stop);
+      clearUserInputHandlers();
     }
   }
 
-  function resizeCanvas(e) {
+  function resizeCanvas(_) {
     const smaller = Math.min(window.innerWidth, window.innerHeight);
     const width = smaller;
     const height = smaller;
@@ -135,7 +159,19 @@ async function main() {
   addEventListener('resize', resizeCanvas);
   resizeCanvas();
 
-  mainLoop(performance.now());
+  // start game button
+  const button = document.getElementById('start-game');
+  button.addEventListener(
+    'click',
+    (_) => {
+      if (!startGame) {
+        startGame = true;
+        setupUserInputHandlers();
+        requestAnimationFrame(mainLoop);
+      }
+    },
+    false
+  );
 }
 
 main();

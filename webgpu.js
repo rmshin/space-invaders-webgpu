@@ -4,6 +4,8 @@ import {
   getCircleVertexData,
   getVertexScaleColourData,
   getVertexOffsetData,
+  getShooterVertexData,
+  getShooterAttributesData,
 } from './vertex-data.js';
 
 async function getDevice() {
@@ -104,7 +106,7 @@ async function setup() {
     colorAttachments: [
       {
         // view: <- to be filled out during render
-        clearValue: [0.2, 0.2, 0.2, 1],
+        clearValue: [0, 0, 0, 1],
         loadOp: 'clear',
         storeOp: 'store',
       },
@@ -207,4 +209,47 @@ function setupVertexAttributeBuffers(device, numRows, numCols) {
   };
 }
 
-export { setup, setupVertexBuffers, setupVertexAttributeBuffers };
+function setupShooterBuffers(device) {
+  const { numShooterVertices, shooterVertexData, shooterIndexData } = getShooterVertexData();
+  const vertexBuffer = device.createBuffer({
+    label: `shooter vertex buffer`,
+    size: shooterVertexData.byteLength,
+    usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+  });
+  device.queue.writeBuffer(vertexBuffer, 0, shooterVertexData);
+
+  const indexBuffer = device.createBuffer({
+    label: `shooter index buffer`,
+    size: shooterIndexData.byteLength,
+    usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST,
+  });
+  device.queue.writeBuffer(indexBuffer, 0, shooterIndexData);
+
+  const { shooterColourScaleData, shooterOffsetData } = getShooterAttributesData();
+  const colourScaleBuffer = device.createBuffer({
+    label: `static shooter colour & scale buffer`,
+    size: shooterColourScaleData.byteLength,
+    usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+  });
+  device.queue.writeBuffer(colourScaleBuffer, 0, shooterColourScaleData);
+
+  const offsetBuffer = device.createBuffer({
+    label: `dynamic shooter offset buffer`,
+    size: shooterOffsetData.byteLength,
+    usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+  });
+  device.queue.writeBuffer(offsetBuffer, 0, shooterOffsetData);
+
+  return {
+    shooter: {
+      numVertices: numShooterVertices,
+      vBuffer: vertexBuffer,
+      idxBuffer: indexBuffer,
+      csBuffer: colourScaleBuffer,
+      offBuffer: offsetBuffer,
+      offsetData: shooterOffsetData,
+    },
+  };
+}
+
+export { setup, setupVertexBuffers, setupVertexAttributeBuffers, setupShooterBuffers };
