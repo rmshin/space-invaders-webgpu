@@ -5,6 +5,7 @@ import {
   setupShooterBuffers,
 } from './webgpu.js';
 import { setupUserInputHandlers, clearUserInputHandlers, getShooterOffsetX } from './user-input.js';
+import { getVertexOffsetData } from './vertex-data.js';
 
 async function main() {
   const { device, canvas, pipeline, renderPassDescriptor } = await setup();
@@ -30,6 +31,21 @@ async function main() {
   let horizontalShiftFactor = 0.03;
   let downwardShift = 0.05;
   let tickPeriod = 650;
+
+  function resetGameState() {
+    // reset game flags
+    startGame = false;
+    gameOver = false;
+    // reset update vars
+    currDir = 'right';
+    previousTimeStamp = undefined;
+    horizontalShiftFactor = 0.03;
+    tickPeriod = 650;
+    // reset invader positions
+    const initial = getVertexOffsetData(numRows, numCols).vOffsetData;
+    dynamic.vOffset.data = initial;
+    device.queue.writeBuffer(dynamic.vOffset.buffer, 0, dynamic.vOffset.data);
+  }
 
   function update(time) {
     // TEMP: hard-coded game over condition
@@ -140,6 +156,7 @@ async function main() {
     if (gameOver) {
       cancelAnimationFrame(stop);
       clearUserInputHandlers();
+      resetGameState();
     }
   }
 
@@ -163,11 +180,12 @@ async function main() {
   const button = document.getElementById('start-game');
   button.addEventListener(
     'click',
-    (_) => {
+    (e) => {
       if (!startGame) {
         startGame = true;
         setupUserInputHandlers();
         requestAnimationFrame(mainLoop);
+        e.target.blur();
       }
     },
     false
