@@ -6,6 +6,8 @@ import {
   getVertexOffsetData,
   getShooterVertexData,
   getShooterAttributesData,
+  getProjectileVertexData,
+  getProjectileColourScaleData,
 } from './vertex-data.js';
 
 async function getDevice() {
@@ -252,4 +254,51 @@ function setupShooterBuffers(device) {
   };
 }
 
-export { setup, setupVertexBuffers, setupVertexAttributeBuffers, setupShooterBuffers };
+function setupProjectileBuffers(device) {
+  const { numProjVertices, projVertexData, projIndexData } = getProjectileVertexData();
+  const vertexBuffer = device.createBuffer({
+    label: `projectile vertex buffer`,
+    size: projVertexData.byteLength,
+    usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+  });
+  device.queue.writeBuffer(vertexBuffer, 0, projVertexData);
+
+  const indexBuffer = device.createBuffer({
+    label: `projectile index buffer`,
+    size: projIndexData.byteLength,
+    usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST,
+  });
+  device.queue.writeBuffer(indexBuffer, 0, projIndexData);
+
+  const csData = getProjectileColourScaleData();
+  const colourScaleBuffer = device.createBuffer({
+    label: `static projectile colour & scale buffer`,
+    size: csData.byteLength,
+    usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+  });
+  device.queue.writeBuffer(colourScaleBuffer, 0, csData);
+
+  const offsetBuffer = device.createBuffer({
+    label: `dynamic projectile offset buffer`,
+    size: 2 * 4 * 20, // offset data unit size * max projectiles
+    usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+  });
+
+  return {
+    projectile: {
+      numVertices: numProjVertices,
+      vBuffer: vertexBuffer,
+      idxBuffer: indexBuffer,
+      csBuffer: colourScaleBuffer,
+      offBuffer: offsetBuffer,
+    },
+  };
+}
+
+export {
+  setup,
+  setupVertexBuffers,
+  setupVertexAttributeBuffers,
+  setupShooterBuffers,
+  setupProjectileBuffers,
+};

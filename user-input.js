@@ -13,6 +13,7 @@ function handleKeydownEvent(e) {
       keyStates[keyName] = true;
       keyStates['ArrowLeft'] = false;
       break;
+    // TODO: handle shoot projectile
     default:
       break;
   }

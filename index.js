@@ -3,9 +3,12 @@ import {
   setupVertexBuffers,
   setupVertexAttributeBuffers,
   setupShooterBuffers,
+  setupProjectileBuffers,
 } from './webgpu.js';
 import { setupUserInputHandlers, clearUserInputHandlers, getShooterOffsetX } from './user-input.js';
 import { getVertexOffsetData } from './vertex-data.js';
+
+const MAX_PROJECTILES = 20;
 
 async function main() {
   const { device, canvas, pipeline, renderPassDescriptor } = await setup();
@@ -20,6 +23,7 @@ async function main() {
 
   const { fixed, dynamic } = setupVertexAttributeBuffers(device, numRows, numCols);
   const { shooter } = setupShooterBuffers(device);
+  const { projectile } = setupProjectileBuffers(device);
 
   // game state
   let startGame = false;
@@ -31,6 +35,9 @@ async function main() {
   let horizontalShiftFactor = 0.03;
   let downwardShift = 0.05;
   let tickPeriod = 650;
+
+  // TODO: update these values based off user keyboard input
+  const projectiles = [{ x: 0, y: -0.9, velocity: 0.01 }];
 
   function resetGameState() {
     // reset game flags
@@ -61,6 +68,9 @@ async function main() {
       shooter.offsetData[i] = shooterOffsetX;
     }
     device.queue.writeBuffer(shooter.offBuffer, 0, shooter.offsetData);
+
+    // TODO: check if projectile collides with invader or goes off screen
+    // TODO: projectile animation
 
     // invader animation
     const elapsed = time - previousTimeStamp;
@@ -141,6 +151,12 @@ async function main() {
     pass.setVertexBuffer(2, shooter.offBuffer);
     pass.setIndexBuffer(shooter.idxBuffer, 'uint32');
     pass.drawIndexed(shooter.numVertices);
+    // draw projectiles
+    pass.setVertexBuffer(0, projectile.vBuffer);
+    pass.setVertexBuffer(1, projectile.csBuffer);
+    pass.setVertexBuffer(2, projectile.offBuffer);
+    pass.setIndexBuffer(projectile.idxBuffer, 'uint32');
+    pass.drawIndexed(projectile.numVertices, Math.min(projectiles.length, MAX_PROJECTILES));
     pass.end();
 
     const commandBuffer = encoder.finish();

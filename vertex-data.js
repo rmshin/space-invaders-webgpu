@@ -15,7 +15,7 @@ function getTriangleVertexData() {
   return { numTriangleVertices: numVertices, triangleVertexData: vertexData };
 }
 
-function getRectVertexData() {
+function getRectVertexData(width = 0.75, height = 0.5) {
   // 0---2
   // | //|
   // |// |
@@ -30,10 +30,13 @@ function getRectVertexData() {
     vertexData[offset++] = y;
   };
 
-  addVertex(-0.375, 0.5);
-  addVertex(-0.375, 0);
-  addVertex(0.375, 0.5);
-  addVertex(0.375, 0);
+  // base of rectangle at y = 0
+  // horizontally centred at (0,0)
+  const x = width / 2;
+  addVertex(-x, height);
+  addVertex(-x, 0);
+  addVertex(x, height);
+  addVertex(x, 0);
 
   offset = 0;
   // first triangle
@@ -195,6 +198,27 @@ function getShooterAttributesData() {
   return { shooterColourScaleData: scaleData, shooterOffsetData: offsetData };
 }
 
+function getProjectileVertexData() {
+  const {
+    numRectVertices: numProjVertices,
+    rectVertexData: projVertexData,
+    rectIndexData: projIndexData,
+  } = getRectVertexData(0.04, 0.35);
+  return { numProjVertices, projVertexData, projIndexData };
+}
+function getProjectileColourScaleData(maxProjectiles = 20) {
+  const scaleColourUnitSize = 4 + 2 * 4;
+  const colourData = new Uint8Array(scaleColourUnitSize * maxProjectiles);
+  const scaleData = new Float32Array(colourData.buffer);
+  for (let i = 0; i < maxProjectiles; i++) {
+    const colOffset = i * scaleColourUnitSize;
+    const scaleOffset = colOffset / 4 + 1;
+    colourData.set([255, 0, 0, 255], colOffset);
+    scaleData.set([0.1, 0.1], scaleOffset);
+  }
+  return scaleData;
+}
+
 export {
   getTriangleVertexData,
   getRectVertexData,
@@ -203,4 +227,6 @@ export {
   getVertexOffsetData,
   getShooterVertexData,
   getShooterAttributesData,
+  getProjectileVertexData,
+  getProjectileColourScaleData,
 };
