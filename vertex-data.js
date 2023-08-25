@@ -31,7 +31,7 @@ function getRectVertexData(width = 0.75, height = 0.5) {
   };
 
   // base of rectangle at y = 0
-  // horizontally centred at (0,0)
+  // horizontally centred at x = 0
   const x = width / 2;
   addVertex(-x, height);
   addVertex(-x, 0);

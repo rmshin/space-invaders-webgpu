@@ -1,10 +1,6 @@
 body {
   background-color: black;
   color: white;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
 }
 
 #canvas {
@@ -12,18 +8,22 @@ body {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  border-top: 1px solid white;
-  border-bottom: 1px solid white;
+  border-top: 1px solid #c3c3c3;
+  border-bottom: 1px solid #c3c3c3;
 }
 
 #start-game {
   font-family: source-code-pro, 'Menlo';
-  background: none;
+  background: #000;
   color: inherit;
   margin-top: 1rem;
   font-size: 1.2rem;
   border: 1px solid white;
   padding: 0.5rem 1rem;
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
 }
 #start-game:hover {
   cursor: pointer;
