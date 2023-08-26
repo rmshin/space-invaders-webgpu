@@ -203,7 +203,7 @@ function getProjectileVertexData() {
     numRectVertices: numProjVertices,
     rectVertexData: projVertexData,
     rectIndexData: projIndexData,
-  } = getRectVertexData(0.04, 0.35);
+  } = getRectVertexData(0.04, 0.3);
   return { numProjVertices, projVertexData, projIndexData };
 }
 function getProjectileColourScaleData(maxProjectiles = 20) {

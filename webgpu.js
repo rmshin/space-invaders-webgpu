@@ -52,22 +52,31 @@ async function setup() {
           @builtin(position) position: vec4f,
           @location(0) colour: vec4f
         }
+
+        @group(0) @binding(0) var<storage> activeState: array<u32>;
   
-        @vertex fn vs(vert: Vertex) -> VsOutput {
+        @vertex
+        fn vs(
+          vert: Vertex,
+          @builtin(instance_index) instance: u32
+        ) -> VsOutput {
+          let state = f32(activeState[instance]);
+
           var output: VsOutput;
-          output.position = vec4f(vert.position * vert.scale + vert.offset, 0.0, 1.0);
+          output.position = vec4f(vert.position * vert.scale * state + vert.offset, 0.0, 1.0);
           output.colour = vert.colour;
           return output;
         }
    
-        @fragment fn fs(input: VsOutput) -> @location(0) vec4f {
+        @fragment
+        fn fs(input: VsOutput) -> @location(0) vec4f {
           return input.colour;
         }
       `,
   });
 
   const pipeline = device.createRenderPipeline({
-    label: 'hardcoded triangle pipeline',
+    label: 'space invaders render pipeline',
     layout: 'auto',
     vertex: {
       module,
@@ -104,7 +113,7 @@ async function setup() {
   });
 
   const renderPassDescriptor = {
-    label: 'our basic canvas renderPass',
+    label: 'basic canvas renderPass',
     colorAttachments: [
       {
         // view: <- to be filled out during render
@@ -211,6 +220,52 @@ function setupVertexAttributeBuffers(device, numRows, numCols) {
   };
 }
 
+function setupStateStorageBuffers(device, numTriangles, numRects, numCircles, maxProjectiles) {
+  const initialTriangleState = new Uint32Array(new Array(numTriangles).fill(1));
+  const tStorageBuffer = device.createBuffer({
+    label: `triangle active state storage buffer`,
+    size: initialTriangleState.byteLength,
+    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+  });
+  device.queue.writeBuffer(tStorageBuffer, 0, initialTriangleState);
+
+  const initialRectState = new Uint32Array(new Array(numRects).fill(1));
+  const rStorageBuffer = device.createBuffer({
+    label: `rectangle active state storage buffer`,
+    size: initialRectState.byteLength,
+    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+  });
+  device.queue.writeBuffer(rStorageBuffer, 0, initialRectState);
+
+  const initialCircleState = new Uint32Array(new Array(numCircles).fill(1));
+  const cStorageBuffer = device.createBuffer({
+    label: `circle active state storage buffer`,
+    size: initialCircleState.byteLength,
+    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+  });
+  device.queue.writeBuffer(cStorageBuffer, 0, initialCircleState);
+
+  const projectileState = new Uint32Array(new Array(maxProjectiles).fill(1));
+  const pStorageBuffer = device.createBuffer({
+    label: `always active state storage buffer`,
+    size: projectileState.byteLength,
+    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+  });
+  device.queue.writeBuffer(pStorageBuffer, 0, projectileState);
+
+  return {
+    storage: {
+      tStateBuffer: tStorageBuffer,
+      tStateData: initialTriangleState,
+      rStateBuffer: rStorageBuffer,
+      rStateData: initialRectState,
+      cStateBuffer: cStorageBuffer,
+      cStateData: initialCircleState,
+      pStateBuffer: pStorageBuffer,
+    },
+  };
+}
+
 function setupShooterBuffers(device) {
   const { numShooterVertices, shooterVertexData, shooterIndexData } = getShooterVertexData();
   const vertexBuffer = device.createBuffer({
@@ -254,7 +309,7 @@ function setupShooterBuffers(device) {
   };
 }
 
-function setupProjectileBuffers(device) {
+function setupProjectileBuffers(device, maxProjectiles = 5) {
   const { numProjVertices, projVertexData, projIndexData } = getProjectileVertexData();
   const vertexBuffer = device.createBuffer({
     label: `projectile vertex buffer`,
@@ -278,9 +333,11 @@ function setupProjectileBuffers(device) {
   });
   device.queue.writeBuffer(colourScaleBuffer, 0, csData);
 
+  // offset data unit size * max projectiles
+  const offsetData = new Float32Array(2 * maxProjectiles);
   const offsetBuffer = device.createBuffer({
     label: `dynamic projectile offset buffer`,
-    size: 2 * 4 * 20, // offset data unit size * max projectiles
+    size: offsetData.byteLength,
     usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
   });
 
@@ -291,6 +348,7 @@ function setupProjectileBuffers(device) {
       idxBuffer: indexBuffer,
       csBuffer: colourScaleBuffer,
       offBuffer: offsetBuffer,
+      offsetData,
     },
   };
 }
@@ -299,6 +357,7 @@ export {
   setup,
   setupVertexBuffers,
   setupVertexAttributeBuffers,
+  setupStateStorageBuffers,
   setupShooterBuffers,
   setupProjectileBuffers,
 };

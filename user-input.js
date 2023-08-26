@@ -1,4 +1,4 @@
-const keyStates = {};
+let keyStates = {};
 let shooterOffsetX = 0;
 let keycheckStop;
 
@@ -14,6 +14,9 @@ function handleKeydownEvent(e) {
       keyStates['ArrowLeft'] = false;
       break;
     // TODO: handle shoot projectile
+    case ' ':
+      keyStates['Space'] = true;
+      break;
     default:
       break;
   }
@@ -28,6 +31,9 @@ function handleKeyupEvent(e) {
     case 'ArrowRight':
       keyStates[keyName] = false;
       break;
+    case ' ':
+      keyStates['Space'] = false;
+      break;
     default:
       break;
   }
@@ -35,30 +41,41 @@ function handleKeyupEvent(e) {
 
 let previousTimeStamp;
 const tickPeriod = 35;
-function checkKeyStates(time) {
-  if (previousTimeStamp === undefined) {
-    previousTimeStamp = time;
-  }
-  const elapsed = time - previousTimeStamp;
-  if (elapsed >= tickPeriod) {
-    const delta_time = elapsed * 0.01;
-    previousTimeStamp = time;
-
-    if (keyStates['ArrowLeft'] && shooterOffsetX > -0.9) {
-      shooterOffsetX -= 0.05 * delta_time;
-    } else if (keyStates['ArrowRight'] && shooterOffsetX < 0.9) {
-      shooterOffsetX += 0.05 * delta_time;
+let nextProjectileTimeStamp = performance.now();
+const projectileDebounce = 200;
+const shooterOffsetY = -0.2 * 0.12 - 0.85; // hardcoded values from vertex-data.js
+function checkKeyStates(projectilesArr) {
+  return function (time) {
+    if (previousTimeStamp === undefined) {
+      previousTimeStamp = time;
     }
-  }
 
-  keycheckStop = requestAnimationFrame(checkKeyStates);
+    const elapsed = time - previousTimeStamp;
+    if (elapsed >= tickPeriod) {
+      const delta_time = elapsed * 0.01;
+      previousTimeStamp = time;
+
+      if (keyStates['ArrowLeft'] && shooterOffsetX > -0.9) {
+        shooterOffsetX -= 0.05 * delta_time;
+      } else if (keyStates['ArrowRight'] && shooterOffsetX < 0.9) {
+        shooterOffsetX += 0.05 * delta_time;
+      }
+    }
+    // projectile updates
+    if (keyStates['Space'] && time >= nextProjectileTimeStamp && projectilesArr.length < 1) {
+      nextProjectileTimeStamp = time + projectileDebounce;
+      projectilesArr.push({ x: shooterOffsetX, y: shooterOffsetY, velocity: 0.01 });
+    }
+
+    keycheckStop = requestAnimationFrame(checkKeyStates(projectilesArr));
+  };
 }
 
-function setupUserInputHandlers() {
+function setupUserInputHandlers(projectilesArr) {
   document.addEventListener('keydown', handleKeydownEvent, false);
   document.addEventListener('keyup', handleKeyupEvent, false);
 
-  requestAnimationFrame(checkKeyStates);
+  requestAnimationFrame(checkKeyStates(projectilesArr));
 }
 
 function clearUserInputHandlers() {
@@ -66,6 +83,7 @@ function clearUserInputHandlers() {
   document.removeEventListener('keyup', handleKeyupEvent);
   cancelAnimationFrame(keycheckStop);
   shooterOffsetX = 0;
+  keyStates = {};
 }
 
 function getShooterOffsetX() {

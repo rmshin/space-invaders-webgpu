@@ -2,13 +2,14 @@ import {
   setup,
   setupVertexBuffers,
   setupVertexAttributeBuffers,
+  setupStateStorageBuffers,
   setupShooterBuffers,
   setupProjectileBuffers,
 } from './webgpu.js';
 import { setupUserInputHandlers, clearUserInputHandlers, getShooterOffsetX } from './user-input.js';
 import { getVertexOffsetData } from './vertex-data.js';
 
-const MAX_PROJECTILES = 20;
+const MAX_PROJECTILES = 5;
 
 async function main() {
   const { device, canvas, pipeline, renderPassDescriptor } = await setup();
@@ -23,11 +24,43 @@ async function main() {
 
   const { fixed, dynamic } = setupVertexAttributeBuffers(device, numRows, numCols);
   const { shooter } = setupShooterBuffers(device);
-  const { projectile } = setupProjectileBuffers(device);
+  const { projectile } = setupProjectileBuffers(device, MAX_PROJECTILES);
+  const { storage } = setupStateStorageBuffers(
+    device,
+    numRowsTri * numCols, // total num shooters
+    numRowsCirc * numCols, // total num mid invaders
+    numRowsRect * numCols, // total num front invaders
+    MAX_PROJECTILES
+  );
+
+  // bind groups
+  const [tBindGroup, rBindGroup, cBindGroup, pBindGroup] = [
+    device.createBindGroup({
+      label: `bind group for triangle state`,
+      layout: pipeline.getBindGroupLayout(0),
+      entries: [{ binding: 0, resource: { buffer: storage.tStateBuffer } }],
+    }),
+    device.createBindGroup({
+      label: `bind group for rectangle state`,
+      layout: pipeline.getBindGroupLayout(0),
+      entries: [{ binding: 0, resource: { buffer: storage.rStateBuffer } }],
+    }),
+    device.createBindGroup({
+      label: `bind group for circle state`,
+      layout: pipeline.getBindGroupLayout(0),
+      entries: [{ binding: 0, resource: { buffer: storage.cStateBuffer } }],
+    }),
+    device.createBindGroup({
+      label: `bind group for projectile state`,
+      layout: pipeline.getBindGroupLayout(0),
+      entries: [{ binding: 0, resource: { buffer: storage.pStateBuffer } }],
+    }),
+  ];
 
   // game state
   let startGame = false;
   let gameOver = false;
+  let score = 0;
 
   // update
   let currDir = 'right';
@@ -36,8 +69,9 @@ async function main() {
   let downwardShift = 0.05;
   let tickPeriod = 650;
 
-  // TODO: update these values based off user keyboard input
-  const projectiles = [{ x: 0, y: -0.9, velocity: 0.01 }];
+  // in-memory store of active projectiles
+  // updated when user presses 'Space' key
+  const projectiles = [];
 
   function resetGameState() {
     // reset game flags
@@ -52,10 +86,132 @@ async function main() {
     const initial = getVertexOffsetData(numRows, numCols).vOffsetData;
     dynamic.vOffset.data = initial;
     device.queue.writeBuffer(dynamic.vOffset.buffer, 0, dynamic.vOffset.data);
+    // reset invader states
+    for (let i = 0; i < numRowsTri * numCols; i++) {
+      storage.tStateData[i] = 1;
+    }
+    device.queue.writeBuffer(storage.tStateBuffer, 0, storage.tStateData);
+    for (let i = 0; i < numRowsCirc * numCols; i++) {
+      storage.cStateData[i] = 1;
+    }
+    device.queue.writeBuffer(storage.cStateBuffer, 0, storage.cStateData);
+    for (let i = 0; i < numRowsRect * numCols; i++) {
+      storage.rStateData[i] = 1;
+    }
+    device.queue.writeBuffer(storage.rStateBuffer, 0, storage.rStateData);
+    // clear projectiles
+    projectiles.splice(0);
+  }
+
+  function isCollision(p) {
+    const projectileWidth = 0.04 * 0.1; //hardcoded value in vertex-data.js
+    const projectileHeight = 0.3 * 0.1; //hardcoded value in vertex-data.js
+
+    // need to add/subtract width / 2 as projectile begins centered at x=0
+    const pLeft = p.x - projectileWidth / 2; // left-most x-coord
+    const pRight = p.x + projectileWidth / 2; // right-most x-coord
+    // projectile begins with base at y=0
+    const pTop = p.y + projectileHeight;
+    const pBottom = p.y;
+
+    let isCollision = false;
+    let tLeft, tRight, tTop, tBottom;
+    // check collisions with rectangles
+    for (let i = 0; i < storage.rStateData.length; i++) {
+      const state = storage.rStateData[i];
+      if (state == 1) {
+        // get rectangles offset within vertex offset data
+        const offset = ((numRowsTri + numRowsCirc) * numCols * dynamic.vOffset.unitSize) / 4;
+        // get x,y offsets for current rectangle
+        const rectOffsetX = dynamic.vOffset.data[offset + i * 2];
+        const rectOffsetY = dynamic.vOffset.data[offset + i * 2 + 1];
+        const rectWidth = 0.75 * 0.15;
+        const rectHeight = 0.5 * 0.15;
+
+        tLeft = rectOffsetX - rectWidth / 2;
+        tRight = rectOffsetX + rectWidth / 2;
+        tTop = rectOffsetY + rectHeight;
+        tBottom = rectOffsetY;
+
+        if (pLeft > tRight || pRight < tLeft || pTop < tBottom || pBottom > tTop) {
+        } else {
+          // make collided rect inactive
+          storage.rStateData[i] = 0;
+          device.queue.writeBuffer(storage.rStateBuffer, 0, storage.rStateData);
+          // update score
+          score += 10;
+          isCollision = true;
+          break;
+        }
+      }
+    }
+    if (!isCollision) {
+      // check collisions with circles
+      for (let i = 0; i < storage.cStateData.length; i++) {
+        const state = storage.cStateData[i];
+        if (state == 1) {
+          // get circles offset within vertex offset data
+          const offset = (numRowsTri * numCols * dynamic.vOffset.unitSize) / 4;
+          // get x,y offsets for current circle
+          const circleOffsetX = dynamic.vOffset.data[offset + i * 2];
+          const circleOffsetY = dynamic.vOffset.data[offset + i * 2 + 1];
+          const circleRadius = 0.35 * 0.15;
+          const circleOriginY = 0.25 * 0.15;
+
+          tLeft = circleOffsetX - circleRadius;
+          tRight = circleOffsetX + circleRadius;
+          tTop = circleOffsetY + (circleOriginY + circleRadius);
+          tBottom = circleOffsetY + (circleOriginY - circleRadius);
+
+          if (pLeft > tRight || pRight < tLeft || pTop < tBottom || pBottom > tTop) {
+          } else {
+            // make collided circle inactive
+            storage.cStateData[i] = 0;
+            device.queue.writeBuffer(storage.cStateBuffer, 0, storage.cStateData);
+            // update score
+            score += 20;
+            isCollision = true;
+            break;
+          }
+        }
+      }
+    }
+
+    if (!isCollision) {
+      // check collisions with triangles
+      for (let i = 0; i < storage.tStateData.length; i++) {
+        const state = storage.tStateData[i];
+        if (state == 1) {
+          // get x,y offsets for current circle
+          const triOffsetX = dynamic.vOffset.data[i * 2];
+          const triOffsetY = dynamic.vOffset.data[i * 2 + 1];
+          const triangleWidth = 0.5 * 0.15;
+          const triangleHeight = 0.5 * 0.15;
+
+          tLeft = triOffsetX - triangleWidth / 2;
+          tRight = triOffsetX + triangleWidth / 2;
+          tTop = triOffsetY + triangleHeight;
+          tBottom = triOffsetY;
+
+          if (pLeft > tRight || pRight < tLeft || pTop < tBottom || pBottom > tTop) {
+          } else {
+            // make collided triangle inactive
+            storage.tStateData[i] = 0;
+            device.queue.writeBuffer(storage.tStateBuffer, 0, storage.tStateData);
+            // update score
+            score += 40;
+            isCollision = true;
+            break;
+          }
+        }
+      }
+    }
+
+    return isCollision;
   }
 
   function update(time) {
-    // TEMP: hard-coded game over condition
+    // FIX ME: hard-coded game over condition
     if (dynamic.vOffset.data[dynamic.vOffset.data.length - 1] <= -0.87) {
       gameOver = true;
     }
@@ -69,15 +225,31 @@ async function main() {
     }
     device.queue.writeBuffer(shooter.offBuffer, 0, shooter.offsetData);
 
-    // TODO: check if projectile collides with invader or goes off screen
-    // TODO: projectile animation
+    // projectile animation
+    for (let i = 0; i < projectiles.length; i++) {
+      const p = projectiles[i];
+      // remove if projectile hits target or goes off screen
+      if (isCollision(p) || p.y >= 0.7) {
+        projectiles.splice(i, 1);
+        i--;
+      } else {
+        // update offset data with projectile x,y coords
+        p.y += p.velocity;
+        const xOffset = i * 2;
+        const yOffset = xOffset + 1;
+        projectile.offsetData[xOffset] = p.x;
+        projectile.offsetData[yOffset] = p.y;
+      }
+    }
+    device.queue.writeBuffer(projectile.offBuffer, 0, projectile.offsetData);
 
-    // invader animation
     const elapsed = time - previousTimeStamp;
+    // invader animation
     if (elapsed >= tickPeriod) {
       const delta_time = elapsed * 0.001;
       previousTimeStamp = time;
 
+      // FIX ME: use active state to determine offset bounds
       if (currDir == 'right' && dynamic.vOffset.data[dynamic.vOffset.data.length - 2] >= 0.92) {
         currDir = 'left';
         tickPeriod = Math.max(300, tickPeriod - 75);
@@ -123,11 +295,13 @@ async function main() {
     const pass = encoder.beginRenderPass(renderPassDescriptor);
     pass.setPipeline(pipeline);
     // draw triangles
+    pass.setBindGroup(0, tBindGroup);
     pass.setVertexBuffer(0, triangle.vBuffer);
     pass.setVertexBuffer(1, fixed.vScaleColour.buffer);
     pass.setVertexBuffer(2, dynamic.vOffset.buffer);
     pass.draw(triangle.numVertices, numRowsTri * numCols);
     // draw circles
+    pass.setBindGroup(0, cBindGroup);
     pass.setVertexBuffer(0, circle.vBuffer);
     pass.setVertexBuffer(
       2,
@@ -137,6 +311,7 @@ async function main() {
     pass.setIndexBuffer(circle.idxBuffer, 'uint32');
     pass.drawIndexed(circle.numVertices, numRowsCirc * numCols);
     // draw rects
+    pass.setBindGroup(0, rBindGroup);
     pass.setVertexBuffer(0, rect.vBuffer);
     pass.setVertexBuffer(
       2,
@@ -146,6 +321,7 @@ async function main() {
     pass.setIndexBuffer(rect.idxBuffer, 'uint32');
     pass.drawIndexed(rect.numVertices, numRowsRect * numCols);
     // draw shooter
+    pass.setBindGroup(0, pBindGroup); // re-use projectile bg for shooter
     pass.setVertexBuffer(0, shooter.vBuffer);
     pass.setVertexBuffer(1, shooter.csBuffer);
     pass.setVertexBuffer(2, shooter.offBuffer);
@@ -199,7 +375,7 @@ async function main() {
     (e) => {
       if (!startGame) {
         startGame = true;
-        setupUserInputHandlers();
+        setupUserInputHandlers(projectiles);
         requestAnimationFrame(mainLoop);
         e.target.blur();
       }
