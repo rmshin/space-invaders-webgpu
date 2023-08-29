@@ -42,7 +42,7 @@ function handleKeyupEvent(e) {
 let previousTimeStamp;
 const tickPeriod = 35;
 let nextProjectileTimeStamp = performance.now();
-const projectileDebounce = 200;
+const projectileDebounce = 300;
 const shooterOffsetY = -0.2 * 0.12 - 0.85; // hardcoded values from vertex-data.js
 function checkKeyStates(projectilesArr) {
   return function (time) {

@@ -337,7 +337,7 @@ async function main() {
 
       const leftIdx = getLeftMostOffset();
       const rightIdx = getRightMostOffset();
-      if (currDir == 'right' && dynamic.vOffset.data[rightIdx] >= 0.92) {
+      if (currDir == 'right' && dynamic.vOffset.data[rightIdx] >= 0.91) {
         currDir = 'left';
         tickPeriod = Math.max(200, tickPeriod - 75);
         horizontalShiftFactor = Math.min(0.18, horizontalShiftFactor + 0.03);
@@ -345,7 +345,7 @@ async function main() {
           const offset = (i * dynamic.vOffset.unitSize) / 4 + 1;
           dynamic.vOffset.data[offset] -= downwardShift;
         }
-      } else if (currDir == 'left' && dynamic.vOffset.data[leftIdx] <= -0.92) {
+      } else if (currDir == 'left' && dynamic.vOffset.data[leftIdx] <= -0.91) {
         currDir = 'right';
         tickPeriod = Math.max(200, tickPeriod - 75);
         horizontalShiftFactor = Math.min(0.18, horizontalShiftFactor + 0.03);
