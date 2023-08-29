@@ -77,6 +77,7 @@ async function main() {
     // reset game flags
     startGame = false;
     gameOver = false;
+    score = 0;
     // reset update vars
     currDir = 'right';
     previousTimeStamp = undefined;
@@ -210,9 +211,94 @@ async function main() {
     return isCollision;
   }
 
+  function getBottomMostOffsetIdx() {
+    // first check for active rects
+    let activeIdx = storage.rStateData.lastIndexOf(1);
+    if (activeIdx > -1) {
+      const rowNum = numRowsTri + numRowsCirc + Math.ceil(activeIdx / numCols);
+      const offsetIdx = numCols * rowNum * 2 - 1;
+      return offsetIdx;
+    }
+    // then check for active circles
+    activeIdx = storage.cStateData.lastIndexOf(1);
+    if (activeIdx > -1) {
+      const rowNum = numRowsTri + Math.ceil(activeIdx / numCols);
+      const offsetIdx = numCols * rowNum * 2 - 1;
+      return offsetIdx;
+    }
+    // otherwise check for active triangles
+    activeIdx = storage.tStateData.lastIndexOf(1);
+    if (activeIdx > -1) {
+      return activeIdx * 2 + 1;
+    }
+    return -1;
+  }
+  function getLeftMostOffset() {
+    // get left-most active triangle
+    let idx = storage.tStateData.indexOf(1);
+    for (let i = 0; i < numCols; i++) {
+      // get left-most active circle in first row
+      const active1 = storage.tStateData[i];
+      if (active1 == 1 && i < idx % numCols) {
+        idx = numRowsTri * numCols + i;
+      }
+      // get left-most active circle in second row
+      const active2 = storage.tStateData[i + numCols];
+      if (active2 == 1 && i < idx % numCols) {
+        idx = (numRowsTri + 1) * numCols + i;
+      }
+    }
+
+    for (let i = 0; i < numCols; i++) {
+      // get left-most active rect in first row
+      const active1 = storage.rStateData[i];
+      if (active1 == 1 && i < idx % numCols) {
+        idx = (numRowsTri + numRowsCirc) * numCols + i;
+      }
+      // get left-most active rect in second row
+      const active2 = storage.rStateData[i + numCols];
+      if (active2 == 1 && i < idx % numCols) {
+        idx = (numRowsTri + numRowsCirc + 1) * numCols + i;
+      }
+    }
+
+    return idx > -1 ? idx * 2 : idx;
+  }
+  function getRightMostOffset() {
+    // get right-most active triangle
+    let idx = storage.tStateData.lastIndexOf(1);
+    for (let i = numCols - 1; i >= 0; i--) {
+      // get right-most active circle in first row
+      const active1 = storage.tStateData[i];
+      if (active1 == 1 && i > idx % numCols) {
+        idx = numRowsTri * numCols + i;
+      }
+      // get right-most active circle in second row
+      const active2 = storage.tStateData[i + numCols];
+      if (active2 == 1 && i > idx % numCols) {
+        idx = (numRowsTri + 1) * numCols + i;
+      }
+    }
+
+    for (let i = numCols - 1; i >= 0; i--) {
+      // get right-most active rect in first row
+      const active1 = storage.rStateData[i];
+      if (active1 == 1 && i > idx % numCols) {
+        idx = (numRowsTri + numRowsCirc) * numCols + i;
+      }
+      // get right-most active rect in second row
+      const active2 = storage.rStateData[i + numCols];
+      if (active2 == 1 && i > idx % numCols) {
+        idx = (numRowsTri + numRowsCirc + 1) * numCols + i;
+      }
+    }
+
+    return idx > -1 ? idx * 2 : idx;
+  }
+
   function update(time) {
-    // FIX ME: hard-coded game over condition
-    if (dynamic.vOffset.data[dynamic.vOffset.data.length - 1] <= -0.87) {
+    const bottomIdx = getBottomMostOffsetIdx();
+    if (bottomIdx < 0 || dynamic.vOffset.data[bottomIdx] <= -0.86) {
       gameOver = true;
     }
     if (previousTimeStamp === undefined) {
@@ -249,19 +335,20 @@ async function main() {
       const delta_time = elapsed * 0.001;
       previousTimeStamp = time;
 
-      // FIX ME: use active state to determine offset bounds
-      if (currDir == 'right' && dynamic.vOffset.data[dynamic.vOffset.data.length - 2] >= 0.92) {
+      const leftIdx = getLeftMostOffset();
+      const rightIdx = getRightMostOffset();
+      if (currDir == 'right' && dynamic.vOffset.data[rightIdx] >= 0.92) {
         currDir = 'left';
-        tickPeriod = Math.max(300, tickPeriod - 75);
-        horizontalShiftFactor = Math.min(0.15, horizontalShiftFactor + 0.03);
+        tickPeriod = Math.max(200, tickPeriod - 75);
+        horizontalShiftFactor = Math.min(0.18, horizontalShiftFactor + 0.03);
         for (let i = 0; i < numRows * numCols; i++) {
           const offset = (i * dynamic.vOffset.unitSize) / 4 + 1;
           dynamic.vOffset.data[offset] -= downwardShift;
         }
-      } else if (currDir == 'left' && dynamic.vOffset.data[0] <= -0.92) {
+      } else if (currDir == 'left' && dynamic.vOffset.data[leftIdx] <= -0.92) {
         currDir = 'right';
-        tickPeriod = Math.min(300, tickPeriod - 75);
-        horizontalShiftFactor = Math.min(0.15, horizontalShiftFactor + 0.03);
+        tickPeriod = Math.max(200, tickPeriod - 75);
+        horizontalShiftFactor = Math.min(0.18, horizontalShiftFactor + 0.03);
         for (let i = 0; i < numRows * numCols; i++) {
           const offset = (i * dynamic.vOffset.unitSize) / 4 + 1;
           dynamic.vOffset.data[offset] -= downwardShift;
